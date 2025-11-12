@@ -14,8 +14,14 @@ use Illuminate\Support\Facades\Mail;
 
 class UserController extends Controller
 {
-    public function store(StoreUserRequest $request)
+    //method pinging to makes sure the API is work
+    public function ping()
     {
+        return response()->json(['message' => 'pong']);
+    }
+
+    public function store(StoreUserRequest $request)
+    {   
         $user = User::create([
             'email' => $request->email,
             'password' => Hash::make($request->password),
@@ -47,13 +53,21 @@ class UserController extends Controller
             );
         }
 
-        $sortBy = $request->input('sortBy', 'created_at');
-        $users = $query->orderBy($sortBy)->paginate(10);
+        $allowedSortColumns = ['name', 'email', 'created_at'];
+        $sortBy = $request->input('sortBy');
+        $sortColumn = in_array($sortBy, $allowedSortColumns) ? $sortBy : 'created_at';
+
+        $users = $query->orderBy($sortColumn, 'desc')->paginate(10);
 
         $authUser = $request->user();
 
+        //create conditional because no auth for this test
         $users->getCollection()->transform(function ($user) use ($authUser) {
-            $user->can_edit = app(\App\Policies\UserPolicy::class)->edit($authUser, $user);
+            if ($authUser) {
+                $user->can_edit = app(\App\Policies\UserPolicy::class)->edit($authUser, $user);
+            } else {
+                $user->can_edit = false;
+            }
             return $user;
         });
 
